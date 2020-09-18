@@ -19,7 +19,7 @@
 &#xD;
 TuyaGateway listens on MQTT topics and routes requests to your Tuya devices.</Overview>
   <Category>Tools: HomeAutomation: Other</Category>
-  <TemplateURL>URL Here</TemplateURL>
+  <TemplateURL>https://raw.githubusercontent.com/TradeFace/tuyagateway/development/unraid/unraid_template_tuyagateway.xml</TemplateURL>
   <Icon>URL here</Icon>
   <DonateLink>URL Here</DonateLink>
   <Description>This is the official TuyaGateway 2.0.&#xD;
