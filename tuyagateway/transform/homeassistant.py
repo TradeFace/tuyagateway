@@ -155,6 +155,16 @@ class TransformDataPoint:
             "payload": _get_topic_value(output_topic_dict, data),
         }
 
+    def _get_fallback_topic(self, topic):
+
+        map_dict = {"state_topic": "command_topic"}
+        find_topic = map_dict[topic]
+
+        output_topic_list = self._get_topics_by_type("subscribe")
+        for output_topic in output_topic_list:
+            if find_topic == output_topic["name"]:
+                return output_topic
+
     def get_publish_content(self):
         """Get the topic and ha payload."""
         if not self.is_valid():
@@ -169,7 +179,13 @@ class TransformDataPoint:
 
                 topic = self._full_topic(output_topic["default_value"])["full"]
                 payload = _get_topic_value(output_topic, self._state_data)
+                if payload is None and self.data_point["device_topic"] == "state_topic":
+                    fallback_topic = self._get_fallback_topic(
+                        self.data_point["device_topic"]
+                    )
+                    payload = _get_topic_value(fallback_topic, self._state_data)
                 self._command_value = payload
+
                 yield {"topic": topic, "payload": payload}
             elif output_topic["name"] == "json_attributes_topic":
                 topic = self._full_topic(output_topic["default_value"])["full"]
