@@ -2,7 +2,6 @@
 import time
 import paho.mqtt.client as mqtt
 import json
-import asyncio
 from .device_thread import DeviceThread
 from .configure import logger
 from .device import Device
@@ -110,7 +109,8 @@ class TuyaMQTT:
         # TODO: check ha_publish
         if not device.is_valid():
             return
-        transform = Transform(self, discover_dict)
+
+        transform = Transform(discover_dict)
 
         device_keys = self._find_device_keys(device_key, device.get_ip_address())
 
@@ -124,16 +124,15 @@ class TuyaMQTT:
 
         if not device.is_valid():
             return
+
         self._devices[device.get_key()] = device
         self._transform[device.get_key()] = transform
-        self._start_device_thread(device.get_key(), device, transform)
 
-    async def get_ha_config(self, key: str, idx: int) -> dict:
-        """Get the HomeAssistant configuration."""
-        # wait till conf available
-        while key not in self._ha_config or idx not in self._ha_config[key]:
-            asyncio.sleep(0.1)
-        return self._ha_config[key][idx]
+        # push the ha config
+        for id_int, ha_dict in self._ha_config[device.get_key()].items():
+            self._transform[device.get_key()].set_homeassistant_config(id_int, ha_dict)
+
+        self._start_device_thread(device.get_key(), device, transform)
 
     def _handle_ha_config_message(self, topic: dict, message):
         if not message.payload:
@@ -144,6 +143,7 @@ class TuyaMQTT:
         except Exception as ex:
             print(ex)
             return
+
         # add context to ha_dict
         ha_dict["device_component"] = topic[1]
 
@@ -160,18 +160,20 @@ class TuyaMQTT:
             self._ha_config[id_parts[0]] = {}
         if not id_parts[1].isnumeric():
             return
+
         id_int = int(id_parts[1])
         self._ha_config[id_parts[0]][id_int] = ha_dict
 
+        # transformer might not yet be instanciated
         if id_parts[0] in self._transform:
             self._transform[id_parts[0]].set_homeassistant_config(id_int, ha_dict)
 
-    async def get_ha_component(self, key: str):
-        """Get the HomeAssistant component configuration."""
-        # wait till conf available
-        while key not in self._ha_component:
-            asyncio.sleep(0.1)
-        return self._ha_component[key]
+    # async def get_ha_component(self, key: str):
+    #     """Get the HomeAssistant component configuration."""
+    #     # wait till conf available
+    #     while key not in self._ha_component:
+    #         asyncio.sleep(0.1)
+    #     return self._ha_component[key]
 
     def _handle_ha_component_message(self, topic: dict, message):
 
