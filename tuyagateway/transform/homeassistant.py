@@ -184,6 +184,8 @@ class TransformDataPoint:
                         self.data_point["device_topic"]
                     )
                     payload = _get_topic_value(fallback_topic, self._state_data)
+                if payload is None:
+                    payload = self._state_data
                 self._command_value = payload
 
                 yield {"topic": topic, "payload": payload}
