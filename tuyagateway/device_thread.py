@@ -142,10 +142,14 @@ class DeviceThread(threading.Thread):
         via = "tuya"
         if status_from == "command":
             via = "mqtt"
+        # load values in device transformer
         self._device.set_device_payload(data, via=via)
+        # get the internal state
         device_state = self._device.get_device_state()
+        # set state to output transformer
         self._transform.set_device_state(device_state)
 
+        # get the sanitized state and set it to output transformer
         self._transform.set_gateway_payload(self._device.get_gateway_payload())
         for item in self._transform.get_publish_content():
             # get_output_payload():

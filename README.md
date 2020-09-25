@@ -1,7 +1,5 @@
 <p align="center"><img width="50%" alt="TuyaGateway logo" src="https://raw.githubusercontent.com/wiki/TradeFace/tuyagateway/img/tuyagateway_logo.png"></p>
 
-The devices you purchase are defacto your property. You should be able to fully control all aspects of it, without a man in the middle. Be it just flicking a switch or reading data from it. The man in the middle might be benign now, but can you really trust a commercial company with your personal data? Regain control over what is rightfully yours.
-
 We've made a library that communicates locally with your Tuya devices (no internet connection needed), called [TuyaFace](https://github.com/TradeFace/tuyaface). The library is open-source and can be used in your own software if you choose to do so. But we did the heavylifting already for you. TuyaGateway implements the library and communitates over an open protocol (MQTT) with your home automation software. All relevant home automation software packages (e.g. Home Assistant) are able to work with MQTT. 
 
 Great! But what about GismoCaster? [GismoCaster](https://github.com/TradeFace/gismocaster) is the control-center for TuyaGateway. In a webinterface you can add your devices, set names for them, etc. So, no programming required and no dabbling around in obscure text files which will break when you add a tab to many.
