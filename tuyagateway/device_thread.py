@@ -4,7 +4,6 @@ import paho.mqtt.client as mqtt
 import json
 import queue
 import threading
-import asyncio
 from .configure import logger
 from .device import Device
 from tuyagateway.transform.homeassistant import Transform
@@ -28,6 +27,7 @@ class DeviceThread(threading.Thread):
     """Run thread for device."""
 
     delay = 0.1
+    transform_delay = 10
 
     def __init__(self, key: str, device: Device, transform: Transform, parent):
         """Initialize DeviceThread."""
@@ -142,10 +142,14 @@ class DeviceThread(threading.Thread):
         via = "tuya"
         if status_from == "command":
             via = "mqtt"
+        # load values in device transformer
         self._device.set_device_payload(data, via=via)
+        # get the internal state
         device_state = self._device.get_device_state()
+        # set state to output transformer
         self._transform.set_device_state(device_state)
 
+        # get the sanitized state and set it to output transformer
         self._transform.set_gateway_payload(self._device.get_gateway_payload())
         for item in self._transform.get_publish_content():
             # get_output_payload():
@@ -198,12 +202,20 @@ class DeviceThread(threading.Thread):
     def run(self):
         """Tuya MQTTEntity main loop."""
 
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(self._transform.update_config())
-        finally:
-            loop.close()
+        time_start = time.time()
+        while not self.stop.is_set():
+            # wait for transform to become valid
+            if not self._transform.is_valid():
+                time.sleep(self.delay)
+                if time_start + self.transform_delay < time.time():
+                    logger.error(
+                        "No transformer config for %s, within %f seconds",
+                        self._device.get_ip_address(),
+                        self.transform_delay,
+                    )
+                    return
+                continue
+            break
 
         self.mqtt_connect()
         self._tuya_client = TuyaClient(

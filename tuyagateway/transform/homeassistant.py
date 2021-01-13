@@ -18,9 +18,8 @@ def _get_topic_value(output_topic, data):
 class TransformDataPoint:
     """Transform DataPoint."""
 
-    def __init__(self, main, device_key: str, data_point: dict):
+    def __init__(self, device_key: str, data_point: dict):
         """Initialize TransformDataPoint."""
-        self._main = main
         self._is_valid = False
         self._device_key = device_key
         self._dp_key = data_point["key"]
@@ -30,16 +29,6 @@ class TransformDataPoint:
         self.data_point = data_point
         self.component_config = None
         self.homeassistant_config = None
-
-    async def update_config(self):
-        """Get the config from main once available."""
-        self.homeassistant_config = await self._main.get_ha_config(
-            self._device_key, self._dp_key
-        )
-        self.component_config = await self._main.get_ha_component(
-            self.data_point["device_component"]
-        )
-        self.is_valid()
 
     def set_homeassistant_config(self, config):
         """Set the Home Assistant datapoint config."""
@@ -83,6 +72,9 @@ class TransformDataPoint:
 
     def get_gateway_payload(self):
         """Get payload in gateway format."""
+        if not self.is_valid():
+            return
+
         command_topic_list = list(
             filter(
                 lambda item: "publish_topic" in item
@@ -135,6 +127,9 @@ class TransformDataPoint:
 
     def get_subscribe_topics(self) -> dict:
         """Get the topics to subscribe to for the datapoint."""
+        if not self.is_valid():
+            return
+
         output_topic_list = self._get_topics_by_type("subscribe")
         for output_topic in output_topic_list:
             if output_topic["abbreviation"] not in self.homeassistant_config:
@@ -144,6 +139,9 @@ class TransformDataPoint:
 
     def get_publish_availability(self, data: bool):
         """Get the availability topic and ha payload."""
+        if not self.is_valid():
+            return
+
         output_topic_dict = self._get_topic_by_type_and_name(
             "publish", "availability_topic"
         )
@@ -157,8 +155,21 @@ class TransformDataPoint:
             "payload": _get_topic_value(output_topic_dict, data),
         }
 
+    def _get_fallback_topic(self, topic):
+
+        map_dict = {"state_topic": "command_topic"}
+        find_topic = map_dict[topic]
+
+        output_topic_list = self._get_topics_by_type("subscribe")
+        for output_topic in output_topic_list:
+            if find_topic == output_topic["name"]:
+                return output_topic
+
     def get_publish_content(self):
         """Get the topic and ha payload."""
+        if not self.is_valid():
+            return
+
         output_topic_list = self._get_topics_by_type("publish")
         for output_topic in output_topic_list:
 
@@ -168,7 +179,15 @@ class TransformDataPoint:
 
                 topic = self._full_topic(output_topic["default_value"])["full"]
                 payload = _get_topic_value(output_topic, self._state_data)
+                if payload is None and self.data_point["device_topic"] == "state_topic":
+                    fallback_topic = self._get_fallback_topic(
+                        self.data_point["device_topic"]
+                    )
+                    payload = _get_topic_value(fallback_topic, self._state_data)
+                if payload is None:
+                    payload = self._state_data
                 self._command_value = payload
+
                 yield {"topic": topic, "payload": payload}
             elif output_topic["name"] == "json_attributes_topic":
                 topic = self._full_topic(output_topic["default_value"])["full"]
@@ -179,10 +198,8 @@ class TransformDataPoint:
 class Transform:
     """Transform Home Assistant I/O data."""
 
-    def __init__(self, main, device_config: dict):
+    def __init__(self, device_config: dict):
         """Initialize transform."""
-        # TODO: importing main might not be the best idea
-        self._main = main
         self._device_config = device_config
         self._data_points = {}
         self._is_valid = False
@@ -193,9 +210,9 @@ class Transform:
 
         for dp_value in self._device_config["dps"]:
             self._data_points[dp_value["key"]] = TransformDataPoint(
-                self._main, self._device_config["deviceid"], dp_value
+                self._device_config["deviceid"], dp_value
             )
-        # self._is_valid = True
+        # self._is_valid = False
 
     def set_homeassistant_config(self, idx, ha_dict):
         """Pass the HA config to datapoint."""
@@ -208,14 +225,12 @@ class Transform:
             if data_point and component_name == data_point.get_component_name():
                 data_point.set_component_config(payload_dict)
 
-    async def update_config(self):
-        """Trigger data points to pull the config."""
-        # not the most efficient, but good enough for the task
-        for _, dp_value in self._data_points.items():
-            await dp_value.update_config()
-
     def is_valid(self) -> bool:
         """Return true if the configuration validated."""
+        for _, data_point in self._data_points.items():
+            if not data_point.is_valid():
+                return False
+        self._is_valid = True
         return self._is_valid
 
     def data_point(self, idx: int) -> TransformDataPoint:
@@ -237,6 +252,9 @@ class Transform:
         avail = {}
         topic = None
         for _, data_point in self._data_points.items():
+            if not data_point.is_valid():
+                continue
+
             avail_dp = data_point.get_publish_availability(data)
             avail[avail_dp["topic"]] = avail_dp
             topic = avail_dp["topic"]
